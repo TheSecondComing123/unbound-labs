@@ -157,23 +157,45 @@ document.querySelectorAll('a[href^="#"]').forEach(anchor => {
 
 const contactForm = document.getElementById('contact-form');
 if (contactForm) {
-     contactForm.addEventListener('submit', (e) => {
+     contactForm.addEventListener('submit', async (e) => {
           e.preventDefault();
-
-          const formData = new FormData(contactForm);
-          const data = Object.fromEntries(formData.entries());
-
-          console.log('Form submitted:', data);
 
           const submitBtn = contactForm.querySelector('button[type="submit"]');
           const originalText = submitBtn.textContent;
-          submitBtn.textContent = 'Message Sent!';
+          submitBtn.textContent = 'Sending...';
           submitBtn.disabled = true;
 
-          setTimeout(() => {
+          try {
+               const formData = new FormData(contactForm);
+               const data = Object.fromEntries(formData.entries());
+
+               const response = await fetch('/api/contact', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+               });
+
+               const result = await response.json();
+
+               if (!response.ok) {
+                    alert(`Error: ${result.error}`);
+                    submitBtn.textContent = originalText;
+                    submitBtn.disabled = false;
+                    return;
+               }
+
+               submitBtn.textContent = 'Message Sent!';
+               contactForm.reset();
+
+               setTimeout(() => {
+                    submitBtn.textContent = originalText;
+                    submitBtn.disabled = false;
+               }, 3000);
+          } catch (err) {
+               console.error('Form submission error:', err);
+               alert('Error sending message. Please try again.');
                submitBtn.textContent = originalText;
                submitBtn.disabled = false;
-               contactForm.reset();
-          }, 3000);
+          }
      });
 }

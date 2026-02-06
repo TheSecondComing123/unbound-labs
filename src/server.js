@@ -1,10 +1,13 @@
+require('dotenv').config();
 const express = require('express');
 const path = require('path');
 const fs = require('fs').promises;
 const helmet = require('helmet');
+const { Resend } = require('resend');
 
 const app = express();
-const PORT = 9090;
+const PORT = process.env.PORT || 3000;
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 app.use(
      helmet({
@@ -19,6 +22,7 @@ app.use(
      })
 );
 
+app.use(express.json());
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, '../views'));
 
@@ -59,6 +63,48 @@ app.get('/about', async (_, res) => {
 
 app.get('/contact', async (_, res) => {
      renderPageAsync(res, 'contact', { title: 'Contact', currentPage: 'contact' });
+});
+
+app.post('/api/contact', async (req, res) => {
+     try {
+          const { name, email, subject, message } = req.body;
+
+          if (!name || !email || !subject || !message) {
+               return res.status(400).json({ error: 'Missing required fields' });
+          }
+
+          if (!email.match(/^[^\s@]+@[^\s@]+\.[^\s@]+$/)) {
+               return res.status(400).json({ error: 'Invalid email address' });
+          }
+
+          if (message.trim().length < 10) {
+               return res.status(400).json({ error: 'Message must be at least 10 characters' });
+          }
+
+          const response = await resend.emails.send({
+               from: 'onboarding@resend.dev',
+               to: process.env.CONTACT_EMAIL,
+               subject: `[${subject}] Message from ${name}`,
+               html: `
+                    <h2>New Contact Form Submission</h2>
+                    <p><strong>Name:</strong> ${name}</p>
+                    <p><strong>Email:</strong> ${email}</p>
+                    <p><strong>Subject:</strong> ${subject}</p>
+                    <p><strong>Message:</strong></p>
+                    <p>${message.replace(/\n/g, '<br>')}</p>
+               `
+          });
+
+          if (response.error) {
+               console.error('Resend error:', response.error);
+               return res.status(500).json({ error: 'Failed to send email' });
+          }
+
+          res.json({ success: true, message: 'Email sent successfully' });
+     } catch (err) {
+          console.error('Contact form error:', err);
+          res.status(500).json({ error: 'Internal server error' });
+     }
 });
 
 app.use(async (_, res) => {
